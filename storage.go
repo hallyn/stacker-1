@@ -25,6 +25,8 @@ type Storage interface {
 }
 
 func NewStorage(c StackerConfig) (Storage, error) {
+	return &overlay{c: c}, nil
+
 	fs := syscall.Statfs_t{}
 
 	if err := os.MkdirAll(c.RootFSDir, 0755); err != nil {
