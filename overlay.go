@@ -22,8 +22,8 @@ func (o *overlay) Name() string {
 }
 
 func (o *overlay) Create(source string) error {
-	wd := path.Join(o.c.StackerDir, "overlay.workdir", source)
-	ud := path.Join(o.c.StackerDir, "overlay.upperdir", source)
+	wd := path.Join(o.c.RootFSDir, "overlay.workdir", source)
+	ud := path.Join(o.c.RootFSDir, "overlay.upperdir", source)
 	os.MkdirAll(wd, 0750)
 	os.MkdirAll(ud, 0750)
 	return os.MkdirAll(path.Join(o.c.RootFSDir, source), 0755)
@@ -31,8 +31,8 @@ func (o *overlay) Create(source string) error {
 
 func (o *overlay) Snapshot(source string, target string) error {
 	src := path.Join(o.c.RootFSDir, source)
-	wd := path.Join(o.c.StackerDir, "overlay.workdir", source)
-	ud := path.Join(o.c.StackerDir, "overlay.upperdir", source)
+	wd := path.Join(o.c.RootFSDir, "overlay.workdir", source)
+	ud := path.Join(o.c.RootFSDir, "overlay.upperdir", source)
 	dest := path.Join(o.c.RootFSDir, target)
 	fmt.Printf("creating snapshot %s from %s\n", target, source)
 	os.MkdirAll(wd, 0755)
@@ -60,8 +60,8 @@ func (o *overlay) Restore(source string, target string) error {
 func (o *overlay) Delete(target string) error {
 	fmt.Printf("Deleting %s\n", target)
 	dir := path.Join(o.c.RootFSDir, target)
-	wd := path.Join(o.c.StackerDir, "workdir", target)
-	ud := path.Join(o.c.StackerDir, "upperdir", target)
+	wd := path.Join(o.c.RootFSDir, "workdir", target)
+	ud := path.Join(o.c.RootFSDir, "upperdir", target)
 	err := syscall.Unmount(dir, syscall.MNT_DETACH)
 	if err != nil {
 		return err
