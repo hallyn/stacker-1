@@ -32,14 +32,16 @@ func (o *overlay) Snapshot(source string, target string) error {
 	wd := path.Join(o.c.StackerDir, "workdir", source)
 	ud := path.Join(o.c.StackerDir, "upperdir", source)
 	dest := path.Join(o.c.RootFSDir, target)
-	os.MkdirAll(wd, 0750)
-	os.MkdirAll(ud, 0750)
-	os.MkdirAll(dest, 0750)
+	fmt.Printf("creating snapshot %s from %s\n", target, source)
+	os.MkdirAll(wd, 0755)
+	os.MkdirAll(ud, 0755)
+	os.MkdirAll(dest, 0755)
 	opts := fmt.Sprintf("workdir=%s,upperdir=%s,lowerdir=%s", wd, ud, src)
 	output, err := exec.Command("mount", "-t", "overlay", "-o", opts, src, dest).CombinedOutput()
 	if err != nil {
 		return errors.Errorf("overlay %s -o %s onto %s failed: %s", src, opts, dest, output)
 	}
+	fmt.Printf("created snapshot %s from %s\n%s\n", target, source, output)
 	return nil
 }
 
@@ -49,10 +51,12 @@ func (o *overlay) Restore(source string, target string) error {
 		return err
 	}
 	dir := path.Join(o.c.RootFSDir, target)
+	fmt.Printf("restoring snapshot %s from %s\n", target, source)
 	return syscall.Mount(dir, dir, "none", unix.MS_BIND|unix.MS_REMOUNT, "")
 }
 
 func (o *overlay) Delete(target string) error {
+	fmt.Printf("Deleting %s\n", target)
 	dir := path.Join(o.c.RootFSDir, target)
 	wd := path.Join(o.c.StackerDir, "workdir", target)
 	ud := path.Join(o.c.StackerDir, "upperdir", target)
@@ -73,7 +77,11 @@ func (o *overlay) Delete(target string) error {
 	return nil
 }
 
-func (b *btrfs) Detach() error {
+func (o *overlay) Detach() error {
+	fmt.Printf("Detaching\n")
+	os.RemoveAll(path.Join(o.c.StackerDir, "workdir"))
+	os.RemoveAll(path.Join(o.c.StackerDir, "upperdir"))
+	fmt.Printf("Detached\n")
 	return nil
 }
 
@@ -83,10 +91,25 @@ func (o *overlay) Exists(thing string) bool {
 }
 
 func (o *overlay) MarkReadOnly(thing string) error {
+	fmt.Printf("Marking %s readonly\n", thing)
+	// XXX marking readonly fails.  can't even bind mount.  Is this
+	// not being done in a private mntns?  May require a restructuring :(
+	return nil
 	dir := path.Join(o.c.RootFSDir, thing)
-	return syscall.Mount(dir, dir, "none", unix.MS_BIND|unix.MS_RDONLY|unix.MS_REMOUNT, "")
+	err := syscall.Mount(dir, dir, "none", unix.MS_BIND, "")
+	if err != nil {
+		fmt.Printf("Error bind mounting %s to make it ro\n", thing)
+		return errors.Wrapf(err, "Error bind mounting %s to make it ro", thing)
+	}
+	err = syscall.Mount(dir, dir, "none", unix.MS_BIND|unix.MS_RDONLY|unix.MS_REMOUNT, "")
+	if err != nil {
+		fmt.Printf("Error marking %s readonly\n", thing)
+		return errors.Wrapf(err, "Error marking %s readonly", thing)
+	}
+	return err
 }
 
 func (o *overlay) TemporaryWritableSnapshot(source string) (string, func(), error) {
+	fmt.Printf("called for tempwritesnapshot %s\n", source)
 	return "", func() {}, nil
 }
