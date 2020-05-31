@@ -119,6 +119,7 @@ func isMounted(path string) (bool, error) {
 }
 
 func CleanRoots(config StackerConfig) error {
+	// TODO - remove the workdir and upperdir
 	subvolErr := btrfsSubVolumesDelete(config.RootFSDir)
 	loopback := path.Join(config.StackerDir, "btrfs.loop")
 

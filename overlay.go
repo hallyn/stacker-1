@@ -3,10 +3,12 @@ package stacker
 import (
 	"os/exec"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
 	"syscall"
 
+	"github.com/anuvu/stacker/log"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 )
@@ -20,8 +22,8 @@ func (o *overlay) Name() string {
 }
 
 func (o *overlay) Create(source string) error {
-	wd := path.Join(o.c.StackerDir, "workdir", source)
-	ud := path.Join(o.c.StackerDir, "upperdir", source)
+	wd := path.Join(o.c.StackerDir, "overlay.workdir", source)
+	ud := path.Join(o.c.StackerDir, "overlay.upperdir", source)
 	os.MkdirAll(wd, 0750)
 	os.MkdirAll(ud, 0750)
 	return os.MkdirAll(path.Join(o.c.RootFSDir, source), 0755)
@@ -29,8 +31,8 @@ func (o *overlay) Create(source string) error {
 
 func (o *overlay) Snapshot(source string, target string) error {
 	src := path.Join(o.c.RootFSDir, source)
-	wd := path.Join(o.c.StackerDir, "workdir", source)
-	ud := path.Join(o.c.StackerDir, "upperdir", source)
+	wd := path.Join(o.c.StackerDir, "overlay.workdir", source)
+	ud := path.Join(o.c.StackerDir, "overlay.upperdir", source)
 	dest := path.Join(o.c.RootFSDir, target)
 	fmt.Printf("creating snapshot %s from %s\n", target, source)
 	os.MkdirAll(wd, 0755)
@@ -78,10 +80,6 @@ func (o *overlay) Delete(target string) error {
 }
 
 func (o *overlay) Detach() error {
-	fmt.Printf("Detaching\n")
-	os.RemoveAll(path.Join(o.c.StackerDir, "workdir"))
-	os.RemoveAll(path.Join(o.c.StackerDir, "upperdir"))
-	fmt.Printf("Detached\n")
 	return nil
 }
 
@@ -110,6 +108,34 @@ func (o *overlay) MarkReadOnly(thing string) error {
 }
 
 func (o *overlay) TemporaryWritableSnapshot(source string) (string, func(), error) {
-	fmt.Printf("called for tempwritesnapshot %s\n", source)
-	return "", func() {}, nil
+	dir, err := ioutil.TempDir(o.c.RootFSDir, fmt.Sprintf("temp-snapshot-%s-", source))
+	if err != nil {
+		return "", nil, errors.Wrapf(err, "couldn't create temporary snapshot dir for %s", source)
+	}
+
+	err = os.RemoveAll(dir)
+	if err != nil {
+		return "", nil, errors.Wrapf(err, "couldn't remove tempdir for %s", source)
+	}
+
+	dir = path.Base(dir)
+
+	err = o.Snapshot(source, dir)
+	if err != nil {
+		return "", nil, errors.Wrapf(err, "snapshotting %s onto %s", source, dir)
+	}
+
+	cleanup := func() {
+		err = o.Delete(dir)
+		if err != nil {
+			log.Infof("problem deleting temp subvolume %s: %v", dir, err)
+			return
+		}
+		err = os.RemoveAll(dir)
+		if err != nil {
+			log.Infof("problem deleting temp subvolume dir %s: %v", dir, err)
+		}
+	}
+
+	return dir, cleanup, nil
 }
